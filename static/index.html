@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Agent AI System Designer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a26;
+    --border: #2a2a40;
+    --accent: #7c6aff;
+    --accent2: #ff6a9d;
+    --accent3: #6affda;
+    --accent4: #ffb86a;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --success: #4dff9e;
+    --danger: #ff4d6a;
+    --warning: #ffd24d;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.4;
+  }
+
+  .header {
+    padding: 3rem 2rem 2rem;
+    text-align: center;
+    position: relative;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 60%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  .header h1 {
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 50%, var(--accent3) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+  }
+
+  .header p {
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* Input Panel */
+  .input-panel {
+    max-width: 700px;
+    margin: 2.5rem auto;
+    padding: 0 1.5rem;
+  }
+
+  .input-group {
+    display: flex;
+    gap: 0.75rem;
+    align-items: stretch;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.75rem;
+    transition: border-color 0.3s;
+  }
+
+  .input-group:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(124,106,255,0.1);
+  }
+
+  #task-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    padding: 0.5rem 0.75rem;
+    placeholder-color: var(--muted);
+  }
+
+  #task-input::placeholder { color: var(--muted); }
+
+  #generate-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    color: white;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: opacity 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+
+  #generate-btn:hover { opacity: 0.9; transform: scale(1.02); }
+  #generate-btn:active { transform: scale(0.98); }
+  #generate-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .quick-tasks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    justify-content: center;
+  }
+
+  .quick-task {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.03em;
+  }
+
+  .quick-task:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(124,106,255,0.08);
+  }
+
+  /* Loading */
+  .loading-container {
+    display: none;
+    text-align: center;
+    padding: 3rem;
+  }
+
+  .loading-container.active { display: block; }
+
+  .loader {
+    display: inline-flex;
+    gap: 6px;
+    margin-bottom: 1rem;
+  }
+
+  .loader span {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: bounce 1.2s ease-in-out infinite;
+  }
+
+  .loader span:nth-child(2) { animation-delay: 0.2s; background: var(--accent2); }
+  .loader span:nth-child(3) { animation-delay: 0.4s; background: var(--accent3); }
+
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+    40% { transform: scale(1.2); opacity: 1; }
+  }
+
+  .loading-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  /* Output */
+  #output-area {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1.5rem 4rem;
+    display: none;
+  }
+
+  #output-area.active { display: block; }
+
+  /* Flowchart styles */
+  .flowchart {
+    animation: fadeUp 0.6s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .system-title {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+
+  .system-title h2 {
+    font-size: clamp(1.4rem, 3vw, 2.2rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.4rem;
+  }
+
+  .system-title .task-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* Phase sections */
+  .phase {
+    margin-bottom: 1.5rem;
+    position: relative;
+  }
+
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .phase-number {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .phase-label {
+    font-size: 0.7rem;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .phase-title {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  /* Agent cards grid */
+  .agents-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .agent-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, transform 0.2s;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .agent-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .agent-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .agent-card.color-purple::before { background: var(--accent); }
+  .agent-card.color-pink::before { background: var(--accent2); }
+  .agent-card.color-teal::before { background: var(--accent3); }
+  .agent-card.color-orange::before { background: var(--accent4); }
+  .agent-card.color-success::before { background: var(--success); }
+  .agent-card.color-danger::before { background: var(--danger); }
+  .agent-card.color-warning::before { background: var(--warning); }
+
+  .agent-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .agent-name {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    letter-spacing: -0.01em;
+  }
+
+  .agent-role {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 0.8rem;
+    letter-spacing: 0.05em;
+  }
+
+  .agent-section {
+    margin-bottom: 0.6rem;
+  }
+
+  .agent-section-label {
+    font-size: 0.65rem;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 0.3rem;
+  }
+
+  .agent-section-label.input { color: var(--accent3); }
+  .agent-section-label.output { color: var(--accent2); }
+  .agent-section-label.logic { color: var(--accent4); }
+
+  .agent-section ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .agent-section ul li {
+    font-size: 0.78rem;
+    color: var(--text);
+    opacity: 0.85;
+    padding-left: 0.75rem;
+    position: relative;
+  }
+
+  .agent-section ul li::before {
+    content: '›';
+    position: absolute;
+    left: 0;
+    color: var(--muted);
+  }
+
+  /* Flow arrow row */
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+  }
+
+  .flow-arrow .line {
+    flex: 1;
+    max-width: 100px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+
+  .flow-arrow .arrow-icon { font-size: 1.2rem; color: var(--accent); }
+
+  /* Decision diamond */
+  .decision-block {
+    display: flex;
+    justify-content: center;
+    margin: 1rem 0;
+  }
+
+  .diamond {
+    background: var(--surface2);
+    border: 2px solid var(--accent4);
+    border-radius: 8px;
+    padding: 1rem 2rem;
+    text-align: center;
+    transform: perspective(600px) rotateX(4deg);
+    max-width: 400px;
+    width: 100%;
+    position: relative;
+  }
+
+  .diamond-label {
+    font-size: 0.65rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--accent4);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 0.3rem;
+  }
+
+  .diamond-text {
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+
+  .diamond-branches {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 0.75rem;
+    gap: 1rem;
+  }
+
+  .branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.72rem;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .branch-yes { color: var(--success); }
+  .branch-no { color: var(--danger); }
+
+  /* Special blocks */
+  .block-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .special-block {
+    border-radius: 10px;
+    padding: 1rem;
+    border: 1px solid;
+  }
+
+  .special-block.feedback {
+    background: rgba(124,106,255,0.08);
+    border-color: rgba(124,106,255,0.3);
+  }
+
+  .special-block.failure {
+    background: rgba(255,77,106,0.08);
+    border-color: rgba(255,77,106,0.3);
+  }
+
+  .special-block.optimize {
+    background: rgba(77,255,158,0.08);
+    border-color: rgba(77,255,158,0.3);
+  }
+
+  .special-block.scale {
+    background: rgba(255,184,106,0.08);
+    border-color: rgba(255,184,106,0.3);
+  }
+
+  .special-block-icon { font-size: 1.3rem; margin-bottom: 0.4rem; }
+
+  .special-block-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+  }
+
+  .special-block ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .special-block ul li {
+    font-size: 0.74rem;
+    color: var(--text);
+    opacity: 0.8;
+    padding-left: 0.7rem;
+    position: relative;
+  }
+
+  .special-block ul li::before {
+    content: '·';
+    position: absolute;
+    left: 0;
+    color: var(--muted);
+  }
+
+  /* SVG Flow connector */
+  .connector-svg {
+    display: block;
+    width: 100%;
+    max-height: 40px;
+    overflow: visible;
+  }
+
+  /* Status bar */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem 1.5rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+  }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 1.5rem 0;
+  }
+
+  /* Section heading */
+  .section-heading {
+    font-size: 0.68rem;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .section-heading::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Error message */
+  .error-msg {
+    background: rgba(255,77,106,0.1);
+    border: 1px solid rgba(255,77,106,0.3);
+    color: var(--danger);
+    border-radius: 10px;
+    padding: 1rem 1.5rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    text-align: center;
+    display: none;
+  }
+
+  .error-msg.active { display: block; }
+
+  /* Feedback loop visual */
+  .feedback-loop {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .feedback-loop::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--accent), var(--accent3));
+  }
+
+  .loop-title {
+    font-size: 0.75rem;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent3);
+    margin-bottom: 0.75rem;
+  }
+
+  .loop-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .loop-step {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .loop-connector {
+    color: var(--accent);
+    font-size: 1rem;
+  }
+
+  @media (max-width: 600px) {
+    .agents-grid { grid-template-columns: 1fr; }
+    .block-row { grid-template-columns: 1fr; }
+    .diamond-branches { flex-direction: column; align-items: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Multi-Agent AI System Designer</h1>
+  <p>Define a task · Generate an architecture · Deploy with confidence</p>
+</div>
+
+<div class="input-panel">
+  <div class="input-group">
+    <input id="task-input" type="text" placeholder="e.g. content moderation pipeline, customer support automation…" maxlength="150" />
+    <button id="generate-btn" onclick="generateSystem()">Generate System ↗</button>
+  </div>
+  <div class="quick-tasks">
+    <span class="quick-task" onclick="setTask('Content Moderation Pipeline')">Content Moderation</span>
+    <span class="quick-task" onclick="setTask('Automated Customer Support')">Customer Support</span>
+    <span class="quick-task" onclick="setTask('Research & Report Generation')">Research Reports</span>
+    <span class="quick-task" onclick="setTask('Code Review & Bug Detection')">Code Review</span>
+    <span class="quick-task" onclick="setTask('E-commerce Product Recommendations')">Recommendations</span>
+    <span class="quick-task" onclick="setTask('Legal Document Analysis')">Legal Analysis</span>
+  </div>
+</div>
+
+<div class="loading-container" id="loading">
+  <div class="loader">
+    <span></span><span></span><span></span>
+  </div>
+  <p class="loading-text">Architecting agent network…</p>
+</div>
+
+<div class="error-msg" id="error-msg">⚠ Failed to generate system. Please try again.</div>
+
+<div id="output-area">
+  <div id="flowchart-container"></div>
+</div>
+
+<script>
+const COLORS = ['color-purple','color-pink','color-teal','color-orange','color-success','color-warning','color-danger'];
+const ICONS = ['🤖','🧠','🔍','✅','📊','🛡️','⚙️','📝','🎯','💡','🔄','📡','🗃️','🚦','🧩'];
+
+function setTask(t) {
+  document.getElementById('task-input').value = t;
+}
+
+async function generateSystem() {
+  const task = document.getElementById('task-input').value.trim();
+  if (!task) {
+    document.getElementById('task-input').focus();
+    return;
+  }
+
+  const btn = document.getElementById('generate-btn');
+  btn.disabled = true;
+  document.getElementById('loading').classList.add('active');
+  document.getElementById('output-area').classList.remove('active');
+  document.getElementById('error-msg').classList.remove('active');
+
+  const prompt = `Design a complete multi-agent AI system for: "${task}"
+
+Return ONLY valid JSON (no markdown, no backticks, no extra text). Use this exact schema:
+
+{
+  "taskTitle": "string - clean title for the system",
+  "taskDescription": "string - one line description",
+  "agents": [
+    {
+      "name": "string - agent name",
+      "role": "string - short role descriptor (e.g. ORCHESTRATOR, CLASSIFIER, VALIDATOR)",
+      "icon": "string - single emoji",
+      "inputs": ["string", "string", "string"],
+      "outputs": ["string", "string"],
+      "decisionLogic": ["string - key decision or rule this agent applies", "string"]
+    }
+  ],
+  "routingRules": [
+    { "from": "string - agent name", "to": "string - agent name", "condition": "string - routing condition" }
+  ],
+  "validationGate": {
+    "question": "string - yes/no decision point (e.g. 'Output quality score ≥ threshold?')",
+    "onSuccess": "string - what happens on YES",
+    "onFailure": "string - what happens on NO"
+  },
+  "feedbackLoops": [
+    { "title": "string", "steps": ["string", "string", "string", "string"] }
+  ],
+  "failureHandling": [
+    { "scenario": "string", "action": "string" }
+  ],
+  "optimizations": [
+    { "name": "string", "detail": "string" }
+  ],
+  "scalabilityFeatures": [
+    { "name": "string", "detail": "string" }
+  ]
+}
+
+Requirements:
+- 4 to 7 agents with distinct specialized roles
+- Agents should cover: orchestration, processing, validation, and output
+- Routing rules define clear handoffs between agents
+- 2 feedback loops
+- 3-4 failure scenarios with recovery actions
+- 3-4 optimization strategies
+- 3-4 scalability features
+- All content must be specific to "${task}", not generic`;
+
+  try {
+    const response = await fetch("/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task })
+    });
+
+    const system = await response.json();
+    if (system.error) throw new Error(system.error);
+
+    renderFlowchart(system);
+    document.getElementById('output-area').classList.add('active');
+  } catch (err) {
+    console.error(err);
+    document.getElementById('error-msg').classList.add('active');
+  } finally {
+    btn.disabled = false;
+    document.getElementById('loading').classList.remove('active');
+  }
+}
+
+function renderFlowchart(s) {
+  const container = document.getElementById('flowchart-container');
+  
+  // Status bar
+  const statusBar = `
+    <div class="status-bar">
+      <div class="status-item"><div class="status-dot" style="background:var(--success)"></div>${s.agents.length} Agents</div>
+      <div class="status-item"><div class="status-dot" style="background:var(--accent)"></div>${s.routingRules.length} Routing Rules</div>
+      <div class="status-item"><div class="status-dot" style="background:var(--accent3)"></div>${s.feedbackLoops.length} Feedback Loops</div>
+      <div class="status-item"><div class="status-dot" style="background:var(--accent2)"></div>${s.failureHandling.length} Failure Scenarios</div>
+    </div>
+  `;
+
+  // System title
+  const titleBlock = `
+    <div class="system-title">
+      <div class="task-label">System Architecture For</div>
+      <h2>${s.taskTitle}</h2>
+      <div style="color:var(--muted);font-size:0.85rem;margin-top:0.4rem">${s.taskDescription}</div>
+    </div>
+  `;
+
+  // Phase 1: Agents
+  const agentsHtml = s.agents.map((agent, i) => `
+    <div class="agent-card ${COLORS[i % COLORS.length]}" style="animation-delay:${i*0.08}s">
+      <div class="agent-icon">${agent.icon}</div>
+      <div class="agent-name">${agent.name}</div>
+      <div class="agent-role">${agent.role}</div>
+      <div class="agent-section">
+        <div class="agent-section-label input">↓ Inputs</div>
+        <ul>${agent.inputs.map(x => `<li>${x}</li>`).join('')}</ul>
+      </div>
+      <div class="agent-section">
+        <div class="agent-section-label output">↑ Outputs</div>
+        <ul>${agent.outputs.map(x => `<li>${x}</li>`).join('')}</ul>
+      </div>
+      <div class="agent-section">
+        <div class="agent-section-label logic">⚡ Decision Logic</div>
+        <ul>${agent.decisionLogic.map(x => `<li>${x}</li>`).join('')}</ul>
+      </div>
+    </div>
+  `).join('');
+
+  // Routing rules
+  const routingHtml = s.routingRules.map(r => `
+    <div style="display:flex;align-items:center;gap:0.75rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.65rem 1rem;font-size:0.8rem;flex-wrap:wrap">
+      <span style="font-weight:700;color:var(--accent)">${r.from}</span>
+      <span style="color:var(--muted)">→</span>
+      <span style="font-weight:700;color:var(--accent3)">${r.to}</span>
+      <span style="color:var(--muted);font-family:'Space Mono',monospace;font-size:0.72rem;flex:1">if: ${r.condition}</span>
+    </div>
+  `).join('');
+
+  // Validation gate
+  const validationHtml = `
+    <div class="decision-block">
+      <div class="diamond">
+        <div class="diamond-label">◆ Validation Gate</div>
+        <div class="diamond-text">${s.validationGate.question}</div>
+        <div class="diamond-branches">
+          <div class="branch branch-yes">✓ YES<br><span style="opacity:0.7;font-size:0.65rem">${s.validationGate.onSuccess}</span></div>
+          <div class="branch branch-no">✗ NO<br><span style="opacity:0.7;font-size:0.65rem">${s.validationGate.onFailure}</span></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Feedback loops
+  const feedbackHtml = s.feedbackLoops.map(loop => `
+    <div class="feedback-loop">
+      <div class="loop-title">↺ ${loop.title}</div>
+      <div class="loop-steps">
+        ${loop.steps.map((step, i) => `
+          <span class="loop-step">${step}</span>
+          ${i < loop.steps.length - 1 ? '<span class="loop-connector">→</span>' : ''}
+        `).join('')}
+        <span class="loop-connector">↩</span>
+      </div>
+    </div>
+  `).join('');
+
+  // Failure / Optimize / Scale blocks
+  const failureHtml = s.failureHandling.map(f => `
+    <div class="special-block failure">
+      <div class="special-block-icon">⚠</div>
+      <div class="special-block-title" style="color:var(--danger)">${f.scenario}</div>
+      <ul><li>${f.action}</li></ul>
+    </div>
+  `).join('');
+
+  const optimizeHtml = s.optimizations.map(o => `
+    <div class="special-block optimize">
+      <div class="special-block-icon">⚡</div>
+      <div class="special-block-title" style="color:var(--success)">${o.name}</div>
+      <ul><li>${o.detail}</li></ul>
+    </div>
+  `).join('');
+
+  const scaleHtml = s.scalabilityFeatures.map(sc => `
+    <div class="special-block scale">
+      <div class="special-block-icon">📈</div>
+      <div class="special-block-title" style="color:var(--accent4)">${sc.name}</div>
+      <ul><li>${sc.detail}</li></ul>
+    </div>
+  `).join('');
+
+  container.innerHTML = `
+    <div class="flowchart">
+      ${statusBar}
+      ${titleBlock}
+
+      <div class="section-heading">Phase 1 — Agent Network</div>
+      <div class="agents-grid">${agentsHtml}</div>
+
+      <div class="flow-arrow">
+        <div class="line"></div>
+        <span class="arrow-icon">↓</span>
+        <div class="line"></div>
+      </div>
+
+      <div class="section-heading">Phase 2 — Task Routing</div>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1.5rem">${routingHtml}</div>
+
+      <div class="flow-arrow">
+        <div class="line"></div>
+        <span class="arrow-icon">↓</span>
+        <div class="line"></div>
+      </div>
+
+      <div class="section-heading">Phase 3 — Validation Gate</div>
+      ${validationHtml}
+
+      <div class="section-heading">Phase 4 — Feedback Loops</div>
+      ${feedbackHtml}
+
+      <div class="divider"></div>
+
+      <div class="section-heading">Failure Handling</div>
+      <div class="block-row">${failureHtml}</div>
+
+      <div class="section-heading">Optimizations</div>
+      <div class="block-row">${optimizeHtml}</div>
+
+      <div class="section-heading">Scalability</div>
+      <div class="block-row">${scaleHtml}</div>
+    </div>
+  `;
+
+  document.getElementById('output-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Allow Enter key
+document.getElementById('task-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') generateSystem();
+});
+</script>
+</body>
+</html>
